@@ -6,6 +6,15 @@ from sklearn.ensemble import IsolationForest
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
+from secml.array import CArray
+from secml.data import CDataset
+from secml.ml.classifiers.loss import CLoss
+from secml.ml.peval.metrics import CMetric
+from secml.optim.constraints import CConstraint
+from secml.optim.function import CFunction
+from secml.optim.optimizers import COptimizer
+
+
 class CAttackPoisoningSVM:
     """Poisoning attacks against Support Vector Machines (SVMs).
 
@@ -101,7 +110,7 @@ class CAttackPoisoningSVM:
 
         # fixme: validation loss should be optional and passed from outside
         if classifier.class_type == 'svm':
-            self._attacker_loss = metrics.hinge_loss()
+            loss_name = 'hinge'
         elif classifier.class_type == 'logistic':
             loss_name = 'log'
         elif classifier.class_type == 'ridge':
@@ -109,7 +118,8 @@ class CAttackPoisoningSVM:
         else:
             raise NotImplementedError("We cannot poisoning that classifier")
 
-
+        self._attacker_loss = CLoss.create(
+            loss_name)
 
         self._init_loss = self._attacker_loss
 
@@ -123,7 +133,7 @@ class CAttackPoisoningSVM:
         self._yc = None
         self._idx = None  # index of the current point to be optimized
         self._training_data = None  # training set used to learn classifier
-        self._n_points = None  # FIXME: INIT PARAM?
+        self.n_points = None  # FIXME: INIT PARAM?
 
         # READ/WRITE
         self.val = val  # this is for validation set
@@ -485,6 +495,173 @@ class CAttackPoisoningSVM:
 
         gt = grad_mat.dot(grad_loss_params)
         return gt.ravel()
+
+    def _rnd_init_poisoning_points(
+            self, n_points=None, init_from_val=False, val=None):
+        """Returns a random set of poisoning points randomly with
+        flipped labels."""
+        if init_from_val:
+            if val:
+                init_dataset = val
+            else:
+                init_dataset = self.val
+        else:
+            init_dataset = self.training_data
+
+        if (self.n_points is None or self.n_points == 0) and (
+                n_points is None or n_points == 0):
+            raise ValueError("Number of poisoning points (n_points) not set!")
+
+        if n_points is None:
+            n_points = self.n_points
+
+        idx = CArray.randsample(init_dataset.num_samples, n_points,
+                                random_state=self.random_seed)
+
+        xc = init_dataset.X[idx, :].deepcopy()
+
+        # if the attack is in a continuous space we add a
+        # little perturbation to the initial poisoning point
+        random_noise = CArray.rand(shape=xc.shape,
+                                   random_state=self.random_seed)
+        xc += 1e-3 * (2 * random_noise - 1)
+        yc = CArray(init_dataset.Y[idx]).deepcopy()  # true labels
+
+        # randomly pick yc from a different class
+        for i in range(yc.size):
+            labels = CArray.randsample(init_dataset.num_classes, 2,
+                                       random_state=self.random_seed)
+            if yc[i] == labels[0]:
+                yc[i] = labels[1]
+            else:
+                yc[i] = labels[0]
+
+        return xc, yc
+
+
+    def _run(self, xc, yc, idx=0):
+        """Single point poisoning.
+
+        Here xc can be a *set* of points, in which case idx specifies which
+        point should be manipulated by the poisoning attack.
+
+        """
+        xc = CArray(xc.deepcopy()).atleast_2d()
+
+        self._yc = yc
+        self._xc = xc
+        self._idx = idx  # point to be optimized within xc
+
+        self._x0 = self._xc[idx, :].ravel()
+
+        self._init_solver()
+
+        if self.y_target is None:  # indiscriminate attack
+            x = self._solver.maximize(self._x0)
+        else:  # targeted attack
+            x = self._solver.minimize(self._x0)
+
+        self._solution_from_solver()
+
+        return x
+
+    def run(self, x, y, ds_init=None, max_iter=1):
+        """Runs poisoning on multiple points.
+
+        It reads n_points (previously set), initializes xc, yc at random,
+        and then optimizes the poisoning points xc.
+
+        Parameters
+        ----------
+        x : CArray
+            Validation set for evaluating classifier performance.
+            Note that this is not the validation data used by the attacker,
+            which should be passed instead to `CAttackPoisoning` init.
+        y : CArray
+            Corresponding true labels for samples in `x`.
+        ds_init : CDataset or None, optional.
+            Dataset for warm start.
+        max_iter : int, optional
+            Number of iterations to re-optimize poisoning data. Default 1.
+
+        Returns
+        -------
+        y_pred : predicted labels for all val samples by targeted classifier
+        scores : scores for all val samples by targeted classifier
+        adv_xc : manipulated poisoning points xc (for subsequents warm starts)
+        f_opt : final value of the objective function
+
+        """
+        if self.n_points is None or self.n_points == 0:
+            # evaluate performance on x,y
+            y_pred, scores = self.classifier.predict(
+                x, return_decision_function=True)
+            return y_pred, scores, ds_init, 0
+
+        # n_points > 0
+        if self.init_type == 'random':
+            # randomly sample xc and yc
+            xc, yc = self._rnd_init_poisoning_points()
+        else:
+            raise NotImplementedError(
+                "Unknown poisoning point initialization strategy.")
+
+        # re-set previously-optimized points if passed as input
+        if ds_init is not None:
+            xc[0:ds_init.num_samples, :] = ds_init.X
+            yc[0:ds_init.num_samples] = ds_init.Y
+
+        delta = 1.0
+        k = 0
+
+        # max_iter ignored for single-point attacks
+        if self.n_points == 1:
+            max_iter = 1
+
+        metric = CMetric.create('accuracy')
+
+        while delta > 0 and k < max_iter:
+
+            # self.logger.info(
+            #     "Iter on all the poisoning samples: {:}".format(k))
+
+            xc_prv = xc.deepcopy()
+            for i in range(self.n_points):
+                # this is to optimize the last points first
+                # (and then re-optimize the first ones)
+                idx = self.n_points - i - 1
+                xc[idx, :] = self._run(xc, yc, idx=idx)
+                # optimizing poisoning point 0
+                # self.logger.info(
+                #     "poisoning point {:} optim fopt: {:}".format(
+                #         i, self._f_opt))
+
+                y_pred, scores = self._poisoned_clf.predict(
+                    x, return_decision_function=True)
+                acc = metric.performance_score(y_true=y, y_pred=y_pred)
+                # self.logger.info("Poisoned classifier accuracy "
+                #                  "on test data {:}".format(acc))
+
+            delta = (xc_prv - xc).norm_2d()
+            # self.logger.info(
+            #     "Optimization with n points: " + str(self.n_points) +
+            #     " iter: " + str(k) + ", delta: " +
+            #     str(delta) + ", fopt: " + str(self._f_opt))
+            k += 1
+
+        # re-train the targeted classifier (copied) on poisoned data
+        # to evaluate attack effectiveness on targeted classifier
+        clf, tr = self._update_poisoned_clf(clf=self.classifier,
+                                            tr=self._training_data,
+                                            train_normalizer=False)
+        # fixme: rechange train_normalizer=True
+
+        y_pred, scores = clf.predict(x, return_decision_function=True)
+        acc = metric.performance_score(y_true=y, y_pred=y_pred)
+        # self.logger.info(
+        #     "Original classifier accuracy on test data {:}".format(acc))
+
+        return y_pred, scores, CDataset(xc, yc), self._f_opt
 
 
 if __name__ == '__main__':
