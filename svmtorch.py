@@ -127,10 +127,18 @@ w = torch.autograd.Variable(torch.rand(dim), requires_grad=True)
 step_size = 1e-3
 num_epochs = 10
 
+# def svm_loss(X, y, w, C=1.0):
+#     hx = (X @ w) * y
+#     hl = torch.clamp(1.0 - hx, min=0.0)
+#     return 0.5 * (w @ w) + C * torch.sum(hl ** 2)
+
 def svm_loss(X, y, w, C=1.0):
-    hx = (X @ w) * y
-    hl = torch.clamp(1.0 - hx, min=0.0)
-    return 0.5 * (w @ w) + C * torch.sum(hl ** 2)
+    y = y.to(dtype=w.dtype)                        # ensure float
+    scores = X @ w                                 # [B]
+    margins = 1.0 - y * scores                     # [B]
+    hinge = torch.clamp(margins, min=0.0)          # [B]
+    reg = 0.5 * (w[1:] @ w[1:])                    # don't regularize bias (w[0])
+    return reg + C * hinge.pow(2).mean()           # <-- mean, not sum
 
 opt = torch.optim.SGD([w], lr=1e-3)
 
