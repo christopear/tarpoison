@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[12]:
+# In[5]:
 
 
 from random import shuffle
@@ -12,6 +12,7 @@ from sklearn.datasets import fetch_openml
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
+from torch import nn
 
 mms = MinMaxScaler()
 pca = PCA(n_components=2)
@@ -30,200 +31,240 @@ target_digit1_ydata = y_orig[y_orig == target_digit1]
 target_digit2_ydata = y_orig[y_orig == target_digit2]
 X = np.concatenate((target_digit1_xdata, target_digit2_xdata), axis=0)
 y = np.concatenate((target_digit1_ydata, target_digit2_ydata), axis=0)
-y = np.where(y == target_digit1, 0, 1)
-X = pca.fit_transform(X)
+
+y = np.where(y == target_digit1, -1, 1)
+
+# reduce the dimensions of X
+# X = pca.fit_transform(X)
+# scale to 0/1
 X = mms.fit_transform(X)
+
+# add on the bias
+X = np.concatenate([np.ones_like(X[:, :1]), X],axis=-1)
+
+
+# In[6]:
+
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=42)
 X_test, X_val, y_test, y_val = train_test_split(X_test, y_test, test_size=0.5, random_state=42)
 
-pca.fit(X_train)
+# pca.fit(X_train)
 
 print(X_train.shape, X_test.shape, X_val.shape)
 print(y_train.shape, y_test.shape, y_val.shape)
 
-# In[16]:
+
+# In[7]:
 
 
-import numpy as np
-import torch
-from torch.utils.data import TensorDataset, DataLoader
-
-# assuming X_train, y_train, X_val, y_val, X_test, y_test are numpy arrays
-def to_tensors(X, y):
-    X_t = torch.from_numpy(np.asarray(X)).float()         # [N, D]
-    y_t = torch.from_numpy(np.asarray(y)).long().view(-1) # [N]
-    return X_t, y_t
-
-Xtr_t, ytr_t = to_tensors(X_train, y_train)
-Xva_t, yva_t = to_tensors(X_val,   y_val)
-Xte_t, yte_t = to_tensors(X_test,  y_test)
-
-train_ds = TensorDataset(Xtr_t, ytr_t)
-val_ds   = TensorDataset(Xva_t, yva_t)
-test_ds  = TensorDataset(Xte_t, yte_t)
-
-train_loader = DataLoader(train_ds, batch_size=256, shuffle=True,  num_workers=2, pin_memory=True)
-val_loader   = DataLoader(val_ds,   batch_size=512)
-test_loader  = DataLoader(test_ds,  batch_size=512)
-
-# model wiring with the SVM head from before:
-D = Xtr_t.shape[1]
-K = int(max(ytr_t.max(), yva_t.max(), yte_t.max()).item() + 1)
+X_train = X_train
+y_train = y_train
 
 
-# In[17]:
+# In[8]:
 
 
-# linear_l2_svm.py
-import torch
-from torch import nn
-from torch.utils.data import DataLoader, Dataset
-train_df = Dataset()
-train_load = DataLoader(X_train, batch_size=64, shuffle=True)
+# pca2 = PCA(n_components=2)
+# plotx = pca.fit_transform(X_train)
+
+formatter = plt.FuncFormatter(lambda i, *args: np.where(y_train[i] == 1, target_digit2, target_digit1))
+plt.scatter(X_train[:, 1], X_train[:, 2], c=y_train)
+plt.colorbar(ticks=[0, 1], format=formatter)
+# plt.xlabel(iris.feature_names[x_index])
+# plt.ylabel(iris.feature_names[y_index])
+plt.show()
 
 
-# In[18]:
+# In[ ]:
 
 
-# ----------- Model -----------
-
-class SVMClassifier(nn.Module):
-    """
-    Linear L2-SVM head (squared hinge) with optional feature extractor.
-    - Multiclass via one-vs-rest (K linear scores).
-    - Bias is NOT regularized (as in SVMs).
-    """
-    def __init__(self, in_features: int, num_classes: int, feature_extractor: nn.Module | None = None, bias: bool = True):
-        super().__init__()
-        self.backbone = feature_extractor if feature_extractor is not None else nn.Identity()
-        self.head = nn.Linear(in_features, num_classes, bias=bias)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        z = self.backbone(x)
-        scores = self.head(z)  # shape: [N, K]
-        return scores
 
 
-# ----------- Loss (primal L2-SVM) -----------
 
-def _make_ovr_targets(y: torch.Tensor, num_classes: int) -> torch.Tensor:
-    """
-    y: [N] with class indices in [0, K-1]
-    returns Y_bin: [N, K] with +1 for true class, -1 otherwise (one-vs-rest targets)
-    """
-    N = y.shape[0]
-    Y_bin = -torch.ones((N, num_classes), device=y.device, dtype=torch.float32)
-    Y_bin.scatter_(1, y.view(-1, 1), 1.0)
-    return Y_bin
+# In[9]:
 
 
-def l2_svm_primal_loss(scores: torch.Tensor, y: torch.Tensor, W: torch.Tensor, C: float = 1.0, reduction: str = "mean") -> torch.Tensor:
-    """
-    Loss = 0.5 * ||W||_F^2 + C * mean( clamp(1 - y_bin * scores, 0)^2 )
-    - scores: [N, K] raw class scores (no softmax)
-    - y: [N] ground-truth class indices in [0..K-1]
-    - W: weight matrix of the linear head, shape [K, D] (bias not regularized)
-    """
-    assert scores.dim() == 2 and y.dim() == 1
-    N, K = scores.shape
-    Y_bin = _make_ovr_targets(y, K)                              # [N, K] in {+1, -1}
-    margins = 1.0 - Y_bin * scores                               # [N, K]
-    hinge = torch.clamp(margins, min=0.0)
-    data_loss = (hinge ** 2)
-    if reduction == "mean":
-        data_loss = data_loss.mean()                              # average over N*K
-    elif reduction == "sum":
-        data_loss = data_loss.sum()
-    else:
-        raise ValueError("reduction must be 'mean' or 'sum'")
-
-    reg = 0.5 * (W ** 2).sum()                                   # L2 on weights ONLY
-    return reg + C * data_loss
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
+device = 'cpu'
+X_train = torch.Tensor(X_train).to(device)
+y_train = torch.Tensor(y_train).to(device)
+X_test = torch.Tensor(X_test).to(device)
+y_test = torch.Tensor(y_test).to(device)
+X_val = torch.Tensor(X_val).to(device)
+y_val = torch.Tensor(y_val).to(device)
+train_dl = DataLoader(TensorDataset(X_train, y_train), batch_size=1024)
+test_dl = TensorDataset(X_test, y_test)
+val_dl = TensorDataset(X_val, y_val)
 
 
-# ----------- Metrics -----------
-
-@torch.no_grad()
-def top1_accuracy(scores: torch.Tensor, y: torch.Tensor) -> float:
-    pred = scores.argmax(dim=1)
-    return (pred == y).float().mean().item()
+# In[ ]:
 
 
-# ----------- Training / Eval Loops -----------
 
-def train_epoch(model: nn.Module,
-                loader: DataLoader,
-                optimizer: torch.optim.Optimizer,
-                device: torch.device,
-                C: float = 1.0) -> tuple[float, float]:
-    model.train()
-    running_loss, running_acc, n_batches = 0.0, 0.0, 0
 
-    for x, y in loader:
-        x, y = x.to(device), y.to(device).long()
 
-        scores = model(x)
-        loss = l2_svm_primal_loss(scores, y, W=model.head.weight, C=C, reduction="mean")
+# In[11]:
 
-        optimizer.zero_grad(set_to_none=True)
+
+# class SVMClassifier(nn.Module):
+#     def __init__(self, dim, C):
+#         super(SVMClassifier, self).__init__()
+#         self.w = torch.autograd.Variable(torch.rand(dim), requires_grad=True)
+#         self.C = C
+#         self.dim = dim
+#
+#     def forward(self, x):
+#
+
+
+C = 1.0
+dim = len(X[0])
+
+w = torch.autograd.Variable(torch.rand(dim), requires_grad=True)
+# C = torch.Variable(0.5)
+step_size = 1e-3
+num_epochs = 10
+
+def svm_loss(X, y, w, C=1.0):
+    hx = (X @ w) * y
+    hl = torch.clamp(1.0 - hx, min=0.0)
+    return 0.5 * (w @ w) + C * torch.sum(hl ** 2)
+
+opt = torch.optim.SGD([w], lr=1e-3)
+
+num_epochs = 3000
+sb = tqdm(range(num_epochs))
+tl = []
+for epoch in sb:
+    for Xb, yb in train_dl:
+        loss = svm_loss(Xb, yb, w, C)
+        opt.zero_grad()
         loss.backward()
-        optimizer.step()
+        opt.step()
 
-        running_loss += loss.item()
-        running_acc  += top1_accuracy(scores, y)
-        n_batches    += 1
-
-    return running_loss / n_batches, running_acc / n_batches
-
-
-@torch.no_grad()
-def evaluate(model: nn.Module,
-             loader: DataLoader,
-             device: torch.device,
-             C: float = 1.0) -> tuple[float, float]:
-    model.eval()
-    running_loss, running_acc, n_batches = 0.0, 0.0, 0
-
-    for x, y in loader:
-        x, y = x.to(device), y.to(device).long()
-        scores = model(x)
-        loss = l2_svm_primal_loss(scores, y, W=model.head.weight, C=C, reduction="mean")
-
-        running_loss += loss.item()
-        running_acc  += top1_accuracy(scores, y)
-        n_batches    += 1
-
-    return running_loss / n_batches, running_acc / n_batches
+    if epoch % 10 == 0:
+        loss = svm_loss(X_val, y_val, w, C)
+        tl.append(loss.item())
+        sb.set_postfix(loss=loss.item())
 
 
-# ----------- Example wiring (fill in your own loaders/backbone) -----------
 
-if __name__ == "__main__":
-    """
-    Replace `train_loader`/`val_loader` with your DataLoaders.
-    If you have a backbone that outputs D-dim features, pass it to SVMClassifier.
-    For raw tabular features, use backbone=None and set in_features accordingly.
-    """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    train_loader = [to_tensors(X_train, y_train)]
-    val_loader = [to_tensors(X_val, y_val)]
+# In[38]:
 
-    # --- Example placeholders (replace) ---
-    D = 2          # feature dimensionality
-    K = 2           # number of classes
 
-    backbone = nn.Identity()  # or your feature extractor module
-    model = SVMClassifier(in_features=D, num_classes=K, feature_extractor=backbone, bias=True).to(device)
+# from matplotlib import pyplot as plt
+# tlnp = np.array(tl)
+# tlnp = tlnp[200:]
+# plt.plot(tlnp[1:] - tlnp[:-1])
+# plt.show()
 
-    # IMPORTANT: set weight_decay=0. We add the exact SVM regularizer explicitly.
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-2, momentum=1e-2, weight_decay=0.0)
 
-    C = 1.0  # trade-off between margin term and hinge penalty; tune per dataset
+# In[12]:
 
-    for epoch in range(1, 201):
-        tr_loss, tr_acc = train_epoch(model, train_loader, optimizer, device, C=C)
-        va_loss, va_acc = evaluate(model, val_loader, device, C=C)
-        print(f"epoch {epoch:02d} | train loss {tr_loss:.4f} acc {tr_acc:.3f} | val loss {va_loss:.4f} acc {va_acc:.3f}")
+
+y_pred = (X_test @ w > 0) * 1.0
+
+
+# In[13]:
+
+
+y_test_np = (y_test.detach().numpy() + 1.0)/2
+y_pred_np = y_pred.detach().numpy()
+
+
+# In[14]:
+
+
+from sklearn import metrics
+print(metrics.accuracy_score(y_test_np, y_pred_np))
+print(metrics.precision_score(y_test_np, y_pred_np))
+print(metrics.recall_score(y_test_np, y_pred_np))
+metrics.confusion_matrix(y_test_np, y_pred_np)
+
+
+# In[ ]:
+
+
+# num_epochs = 100
+# sb = tqdm(range(num_epochs))
+# for epoch in sb:
+#     loss = 0.5 * (w @ w) + hl(X_train @ w.T, y_train) ** 2
+#     # L = max(0, 1 - y_train[inds[i]] * (torch.dot(w, torch.Tensor(X_train[inds[i]])) - b))**2
+#     if L != 0: # if the loss is zero, Pytorch leaves the variables as a float 0.0, so we can't call backward() on it
+#         L.backward()
+#         w.data -= step_size * w.grad.data # step
+#         b.data -= step_size * b.grad.data # step
+#         w.grad.data.zero_()
+#         b.grad.data.zero_()
+#
+
+
+# In[ ]:
+
+
+# inner = torch.Tensor(X_test[0]) - b
+# print(inner.size())
+# print(w.size())
+#
+# torch.dot(w, inner)
+
+
+# In[ ]:
+
+
+# print('plane equation:  w=', w.detach().numpy(), 'b =', b.detach().numpy()[0])
+#
+# def accuracy(X, y):
+#     correct = 0
+#     for i in range(len(y)):
+#         y_predicted = int(np.sign((torch.dot(w, torch.Tensor(X[i])) - b).detach().numpy()[0]))
+#         if y_predicted == y[i]: correct += 1
+#     return float(correct)/len(y)
+#
+# print('train accuracy', accuracy(X_train, y_train))
+# print('test accuracy', accuracy(X_test, y_test))
+
+
+# In[ ]:
+
+
+# def line_func(x, offset):
+#     return   -1 * (offset - b.detach().numpy()[0] + w.detach().numpy()[0] * x ) / w.detach().numpy()[1]
+#
+# x = np.array([0,0.5,1])
+# ym = line_func(x,  0)
+# yp = line_func(x,  1)
+# yn = line_func(x, -1)
+#
+# # x_index = 2
+# # y_index = 3
+# # plt.figure(figsize=(8, 6))
+# # formatter = plt.FuncFormatter(lambda i, *args: iris.target_names[int(i)])
+# plt.scatter(X_train[:, 0], X_train[:, 1], c=y_train)
+# plt.colorbar(ticks=[0, 1], format=formatter)
+# # plt.xlabel(iris.feature_names[x_index])
+# # plt.ylabel(iris.feature_names[y_index])
+# # plt.show()
+# # plt.scatter(iris.data[:, x_index], iris.data[:, y_index], c=iris.target)
+# # plt.colorbar(ticks=[0, 1, 2], format=formatter)
+# # plt.xlabel(iris.feature_names[x_index])
+# # plt.ylabel(iris.feature_names[y_index])
+# plt.plot(x, ym)
+# plt.plot(x, yp)
+# plt.plot(x, yn)
+# plt.show()
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
 
 
 
