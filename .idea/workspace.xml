@@ -5,9 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1103f141-f6e1-4944-9bd8-00fe6323d712" name="Changes" comment="Try again...">
-      <change afterPath="$PROJECT_DIR$/svmtorch.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/tarpoison.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SVM with Pytorch.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/SVM with Pytorch.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mnist.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/mnist.ipynb" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -17,8 +19,8 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Jupyter Notebook" />
         <option value="Python Script" />
+        <option value="Jupyter Notebook" />
       </list>
     </option>
   </component>
@@ -46,9 +48,11 @@
     "Python.SVM Poisoning-Understanding.executor": "Debug",
     "Python.SVM with Pytorch.executor": "Run",
     "Python.poisoning.executor": "Debug",
+    "Python.svmtorch.executor": "Debug",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "git-widget-placeholder": "explore/svmtorch",
     "last_opened_file_path": "/Users/christopear/PycharmProjects/tarpoison",
     "node.js.detected.package.eslint": "true",
@@ -189,6 +193,7 @@
       <workItem from="1756133863122" duration="7898000" />
       <workItem from="1756214050263" duration="10602000" />
       <workItem from="1756291994395" duration="9317000" />
+      <workItem from="1756370718517" duration="29506000" />
     </task>
     <task id="LOCAL-00001" summary="Set up base file">
       <option name="closed" value="true" />
@@ -238,7 +243,55 @@
       <option name="project" value="LOCAL" />
       <updated>1756310468809</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="Try again...">
+      <option name="closed" value="true" />
+      <created>1756317841652</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1756317841652</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Try again...">
+      <option name="closed" value="true" />
+      <created>1756381702940</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1756381702940</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Try again...">
+      <option name="closed" value="true" />
+      <created>1756387623888</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1756387623888</updated>
+    </task>
+    <task id="LOCAL-00010" summary="Try again...">
+      <option name="closed" value="true" />
+      <created>1756390762515</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1756390762515</updated>
+    </task>
+    <task id="LOCAL-00011" summary="Try again...">
+      <option name="closed" value="true" />
+      <created>1756458917980</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1756458917980</updated>
+    </task>
+    <task id="LOCAL-00012" summary="Try again...">
+      <option name="closed" value="true" />
+      <created>1756460722409</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1756460722409</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -250,10 +303,22 @@
     <MESSAGE value="Try again..." />
     <option name="LAST_COMMIT_MESSAGE" value="Try again..." />
   </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/svmtorch.py</url>
+          <line>150</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/tarpoison$SVM_with_Pytorch.coverage" NAME="SVM with Pytorch Coverage Results" MODIFIED="1756317776560" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tarpoison$SVM_with_Pytorch.coverage" NAME="svmtorch Coverage Results" MODIFIED="1756317881180" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/tarpoison$poisoning.coverage" NAME="poisoning Coverage Results" MODIFIED="1756140117936" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/tarpoison$05_Poisoning.coverage" NAME="05-Poisoning Coverage Results" MODIFIED="1756307420668" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/tarpoison$SVM_Poisoning_Understanding.coverage" NAME="SVM Poisoning-Understanding Coverage Results" MODIFIED="1756140132350" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tarpoison$svmtorch.coverage" NAME="svmtorch Coverage Results" MODIFIED="1756382015961" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
